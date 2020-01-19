@@ -1,11 +1,74 @@
 org 0x7c00
-BaseOfStack equ 0x7c00
+BaseOfStack 	equ 0x7c00
+BaseOfLoader    equ 0x1000
+OffsetOfLoader  equ 0x00
+
+RootDirSectors  			equ 14
+SectorNumberOfRootDirStart  equ 19
+SectorNumberOfFAT1Start		equ 1
+SectorBalance				equ	17
+
+	jmp short Label_Start
+	nop
+	BS_OEMName			db 	'MINEboot'
+	BS_BytesPersec		dw 	512
+	BPB_SecPerClus		db	1
+	BPB_RsvdSecCnt		dw	1
+	BPB_NumFATs			db	2
+	BPB_RootEntCnt		dw	224
+	BPB_TotSec16		dw	2880
+	BPB_Media			db	0xf0
+	BPB_FATSz16			dw	9
+	BPB_SecPerTrk		dw	18
+	BPB_NumHeads		dw	2
+	BPB_hiddSec			dd	0
+	BPB_TotSec32		dd	0
+	BS_DrvNum			db	0
+	BS_Reserved1		db	0
+	BS_BootSig			db	29h
+	BS_VolID			dd	0
+	BS_VolLab			db	'boot loader'
+	BS_FileSysType		db	'FAT12'
+
+;=======read one sector from floppy
+Func_ReadOneSector:
+	push	bp
+	mov		bp,		sp
+	sub		esp,	2
+	mov		bytes	[bp - 2],	cl
+	push	bx
+	mov		bl,		[BPB_SecPerTrk]
+	div		bl
+	inc		ah
+	mov 	cl,		ah
+	mov		dh,		al
+	shr		al,		1
+	mov		ch,		al
+	and		dh,		1
+	pop		bx
+	mov		dl,		[BS_DrvNum]
+
+Label_Go_On_Reading:
+	mov		ah,		2
+	mov		al,		bytes	[bp - 2]
+	int		13h
+	jc		Label_Go_On_Reading
+	add		esp,	2
+	pop		bp
+	ret
+;====== search loader.bin
+	mov		word	[SectorNo],		SectorNumOfRootDirStrt
+
+Label_Search_In_Root_Dir_Begin:
+	cmp		word	
+
 Label_Start:
     mov ax, cs
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, BaseOfStack
+
 ;============= clear screen
     mov ax, 0600h
     mov bx, 0700h
@@ -26,6 +89,18 @@ Label_Start:
     mov ax, ds
     mov es, ax
     pop ax
-    mov bo, StartBootMessage
+    mov bp, StartBootMessage
     int 10h
 ;========= reset floppy
+	xor ah,	ah
+	xor	dl,	dl
+	int 13h
+	jmp $
+
+StartBootMessage:	db	"Start Boot......"
+
+;=======	file zero untill hole sector
+	times 510 - ($ - $$)	db 0
+	dw 0xaa55
+
+
